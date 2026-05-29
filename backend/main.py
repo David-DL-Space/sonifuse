@@ -53,7 +53,9 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "sonifuse-backend"}
+    import os as _os
+    key_ok = bool(_os.getenv("GEMINI_API_KEY"))
+    return {"status": "ok", "service": "sonifuse-backend", "gemini": key_ok}
 
 
 @app.post("/api/analyze", response_model=AnalysisResult)
