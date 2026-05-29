@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-const SUBSCRIBERS_FILE = path.join(process.cwd(), "subscribers.json");
+const SUBSCRIBERS_FILE = "/tmp/subscribers.json";
 
 interface Subscriber {
   email: string;
