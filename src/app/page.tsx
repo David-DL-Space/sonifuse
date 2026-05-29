@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { extractFeatures } from "@/lib/audio-analyzer";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -26,9 +27,15 @@ export default function Home() {
   const doAnalyze = useCallback(async (audioFile: File) => {
     setLoading(true);
     setError("");
-    const formData = new FormData();
-    formData.append("file", audioFile);
     try {
+      // Step 1: Extract audio features in the browser
+      const features = await extractFeatures(audioFile);
+
+      // Step 2: Send file + features to API
+      const formData = new FormData();
+      formData.append("file", audioFile);
+      formData.append("features", JSON.stringify(features));
+
       const res = await fetch("/api/analyze", { method: "POST", body: formData });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Analysis failed" }));

@@ -3,6 +3,12 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+interface GenreLabel {
+  name: string;
+  confidence: number;
+  parent: string;
+}
+
 interface Analysis {
   id: string;
   filename: string;
@@ -11,15 +17,22 @@ interface Analysis {
   bpm: number;
   key: string;
   key_confidence: number;
-  genre: string;
-  genreConfidence: number;
+  genres: GenreLabel[];
+  genre_confidence: number;
   mood: string[];
   energy: number;
   valence: number;
   danceability: number;
   acousticness: number;
   instrumentalness: number;
+  style_description?: string;
+  era?: string[];
+  region?: string[];
+  scene?: string[];
+  use_cases?: string[];
   tips: { title: string; body: string }[];
+  _gemini_errors?: string[];
+  _model?: string;
 }
 
 function Bar({ label, value, color = "bg-sonifuse-500" }: { label: string; value: number; color?: string }) {
@@ -37,6 +50,26 @@ function Bar({ label, value, color = "bg-sonifuse-500" }: { label: string; value
   );
 }
 
+function TagList({ tags, color = "sonifuse" }: { tags: string[]; color?: string }) {
+  if (!tags || tags.length === 0) return null;
+  const colors: Record<string, string> = {
+    sonifuse: "bg-sonifuse-400/15 text-sonifuse-300",
+    green: "bg-green-400/15 text-green-300",
+    amber: "bg-amber-400/15 text-amber-300",
+    purple: "bg-purple-400/15 text-purple-300",
+    pink: "bg-pink-400/15 text-pink-300",
+  };
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tags.map((t) => (
+        <span key={t} className={`px-2.5 py-1 rounded-full text-xs ${colors[color] || colors.sonifuse}`}>
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function ReportContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
@@ -45,22 +78,14 @@ function ReportContent() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Try to load from sessionStorage first
     const stored = sessionStorage.getItem("sonifuse_result");
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
-        // Map snake_case → camelCase for frontend
-        setData({
-          ...parsed,
-          genreConfidence: parsed.genre_confidence ?? 0,
-          sample_rate: parsed.sample_rate ?? 0,
-          key_confidence: parsed.key_confidence ?? 0,
-        });
+        setData(JSON.parse(stored));
         setLoading(false);
         return;
       } catch {
-        // fall through to error
+        // fall through
       }
     }
     setError("Analysis data not found. Please upload your track again.");
@@ -72,7 +97,7 @@ function ReportContent() {
       <main className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
           <div className="animate-spin text-5xl">🎧</div>
-          <p className="text-slate-400">Analyzing your track...</p>
+          <p className="text-slate-400">Loading report...</p>
         </div>
       </main>
     );
@@ -89,6 +114,8 @@ function ReportContent() {
     );
   }
 
+  const primaryGenre = data.genres?.[0];
+
   return (
     <main className="max-w-2xl mx-auto px-4 py-16 space-y-12">
       {/* Header */}
@@ -96,18 +123,81 @@ function ReportContent() {
         <p className="text-slate-500 text-xs">{data.filename}</p>
         <p className="text-sonifuse-400 text-sm font-medium tracking-wide uppercase">Your Music DNA</p>
         <h1 className="text-3xl md:text-4xl font-bold">
-          {data.genre}{" "}
+          {primaryGenre?.name || "Unknown"}{" "}
           <span className="text-slate-500 text-lg font-normal">
-            ({Math.round(data.genreConfidence * 100)}% match)
+            ({Math.round((primaryGenre?.confidence ?? data.genre_confidence) * 100)}% match)
           </span>
         </h1>
+        {data.style_description && (
+          <p className="text-slate-400 text-sm max-w-lg mx-auto leading-relaxed mt-3">
+            {data.style_description}
+          </p>
+        )}
       </div>
+
+      {/* Multi-genre breakdown */}
+      {data.genres && data.genres.length > 1 && (
+        <div className="space-y-1.5">
+          <p className="text-slate-500 text-xs uppercase tracking-wide mb-2">Genre Breakdown</p>
+          {data.genres.map((g, i) => (
+            <div key={g.name} className="flex items-center gap-3">
+              <span className="text-slate-300 text-sm w-40 text-right truncate" title={g.name}>
+                {g.name}
+                {g.parent ? (
+                  <span className="text-slate-600 text-xs ml-1">← {g.parent}</span>
+                ) : null}
+              </span>
+              <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-1000 ${
+                    i === 0 ? "bg-sonifuse-500" : "bg-slate-600"
+                  }`}
+                  style={{ width: `${g.confidence * 100}%` }}
+                />
+              </div>
+              <span className="text-slate-400 text-xs w-10">{Math.round(g.confidence * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Rich dimension tags */}
+      {(data.era?.length || data.region?.length || data.scene?.length) ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {data.era && data.era.length > 0 && (
+            <div>
+              <p className="text-slate-500 text-xs mb-2">Era</p>
+              <TagList tags={data.era} color="amber" />
+            </div>
+          )}
+          {data.region && data.region.length > 0 && (
+            <div>
+              <p className="text-slate-500 text-xs mb-2">Region</p>
+              <TagList tags={data.region} color="purple" />
+            </div>
+          )}
+          {data.scene && data.scene.length > 0 && (
+            <div>
+              <p className="text-slate-500 text-xs mb-2">Scene</p>
+              <TagList tags={data.scene} color="green" />
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {/* Use cases */}
+      {data.use_cases && data.use_cases.length > 0 && (
+        <div>
+          <p className="text-slate-500 text-xs mb-2">Best For</p>
+          <TagList tags={data.use_cases} color="pink" />
+        </div>
+      )}
 
       {/* Key Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           ["BPM", data.bpm],
-          ["Key", `${data.key} (${Math.round(data.key_confidence * 100)}%)`],
+          ["Key", `${data.key}`],
           ["Energy", `${Math.round(data.energy * 100)}%`],
           ["Dance", `${Math.round(data.danceability * 100)}%`],
         ].map(([label, value]) => (
@@ -146,6 +236,16 @@ function ReportContent() {
               <h3 className="font-semibold text-sonifuse-300 mb-2">{tip.title}</h3>
               <p className="text-slate-400 text-sm leading-relaxed">{tip.body}</p>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Gemini debug */}
+      {data._gemini_errors && data._gemini_errors.length > 0 && (
+        <div className="bg-red-900/20 border border-red-900/50 rounded-xl p-4">
+          <p className="text-red-400 text-xs font-medium mb-1">Gemini fallback — errors:</p>
+          {data._gemini_errors.map((e, i) => (
+            <p key={i} className="text-red-500 text-xs font-mono">{e}</p>
           ))}
         </div>
       )}
@@ -213,7 +313,6 @@ function SubscribeCTA() {
       {status === "error" && <p className="text-red-400 text-xs mt-2">Something went wrong. Try again.</p>}
     </div>
   );
-
 }
 
 export default function ReportPage() {
