@@ -164,6 +164,8 @@ class GeminiClient:
                     logger.warning(f"{model}: {err_msg[:80]} → trying next")
                     continue
                 logger.warning(f"{model}: unexpected error — {err_msg[:120]}")
+                import traceback
+                logger.warning(traceback.format_exc())
                 break  # Don't retry on unknown errors
 
         # All models failed
