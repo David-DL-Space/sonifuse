@@ -19,18 +19,21 @@ logger = logging.getLogger(__name__)
 class AudioAnalyzer:
     """Extract musical features from uploaded audio files."""
 
-    # Approximate genre classifier based on tempo + spectral features
+    # Genre profiles use BPM + spectral features for multi-dimensional matching
+    # Each profile: (bpm_lo, bpm_hi, centroid_hi, bandwidth_hi, energy_hi, acoustic_hi, dance_hi)
     GENRE_PROFILES = {
-        "Electronic / EDM":  {"bpm_range": (120, 150), "acoustic_low": True, "energy_high": True},
-        "Hip Hop / Rap":     {"bpm_range": (80, 110),  "acoustic_low": True, "energy_high": False},
-        "Pop":               {"bpm_range": (100, 130), "acoustic_low": False, "energy_high": True},
-        "Indie Pop":         {"bpm_range": (100, 140), "acoustic_low": False, "energy_high": False},
-        "Rock":              {"bpm_range": (110, 160), "acoustic_low": True,  "energy_high": True},
-        "Lo-fi / Chill":     {"bpm_range": (60, 90),   "acoustic_low": False, "energy_high": False},
-        "Jazz":              {"bpm_range": (60, 160),  "acoustic_low": False, "energy_high": False},
-        "Classical":         {"bpm_range": (40, 140),  "acoustic_low": False, "energy_high": False},
-        "R&B / Soul":        {"bpm_range": (60, 100),  "acoustic_low": False, "energy_high": False},
-        "Ambient":           {"bpm_range": (40, 80),   "acoustic_low": False, "energy_high": False},
+        "Electronic / EDM":  (120, 150, True,  True,  True,  False, True),
+        "Hip Hop / Rap":     (80,  110, False, False, False, False, True),
+        "Pop":               (100, 130, True,  True,  True,  False, True),
+        "Rock":              (110, 160, True,  True,  True,  False, False),
+        "Indie / Alternative": (100, 140, False, False, False, True,  False),
+        "R&B / Soul":        (60,  100, False, False, False, True,  True),
+        "Jazz":              (60,  160, False, False, False, True,  False),
+        "Lo-fi / Chill":     (60,  90,  False, False, False, True,  False),
+        "Classical / Acoustic": (40, 140, False, False, False, True,  False),
+        "Ambient / Experimental": (40, 80, False, False, False, False, False),
+        "Folk / Singer-Songwriter": (60, 120, False, False, False, True, False),
+        "Punk / Metal":      (140, 200, True,  True,  True,  False, False),
     }
 
     # Key estimation — pitch class → key mapping
@@ -55,13 +58,22 @@ class AudioAnalyzer:
         y, sr = self._load_audio(audio_bytes)
         duration = len(y) / sr
 
-        bpm, _ = self._extract_bpm(y, sr)
+        # Pre-compute spectral features for genre classifier
+        self._brightness, self._spec_bandwidth_norm = self._compute_spectral_features(y, sr)
+
+        bpm, bpm_conf = self._extract_bpm(y, sr)
         key, key_conf = self._extract_key(y, sr)
         energy = self._extract_energy(y, sr)
         valence = self._extract_valence(y, sr)
         danceability = self._extract_danceability(y, sr)
         acousticness = self._extract_acousticness(y, sr)
         instrumentalness = self._extract_instrumentalness(y, sr)
+
+        # Adjust confidence for short recordings
+        if duration < 5:
+            bpm_conf *= 0.6
+            key_conf *= 0.5
+
         mood = self._classify_mood(energy, valence, bpm, key)
         genre, genre_conf = self._classify_genre(bpm, energy, acousticness, danceability)
         tips = self._generate_tips(bpm, key, genre, mood, energy, valence)
@@ -144,12 +156,39 @@ class AudioAnalyzer:
     # ── feature extractors ────────────────────────────────────────
 
     def _extract_bpm(self, y: np.ndarray, sr: int) -> tuple[float, float]:
-        """Estimate BPM using onset + tempo tracking."""
+        """Estimate BPM using onset + tempo tracking. Loops short audio for better accuracy."""
         try:
-            onset_env = self.librosa.onset.onset_strength(y=y, sr=sr)
-            tempo = self.librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
-            bpm = float(tempo[0])
-            confidence = 0.85 if 60 <= bpm <= 180 else 0.6
+            # For very short audio, loop it to get enough beats
+            duration = len(y) / sr
+            if duration < 3:
+                loops = max(1, int(8 / duration))  # at least 8s total
+                y_looped = np.tile(y, loops)
+            else:
+                y_looped = y
+
+            onset_env = self.librosa.onset.onset_strength(y=y_looped, sr=sr)
+            tempos = self.librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
+            bpm = float(tempos[0])
+
+            # Dynamic tempo range — allow more BPM values
+            if 50 <= bpm <= 200:
+                confidence = 0.90
+            elif 30 <= bpm <= 250:
+                confidence = 0.70
+            else:
+                # Try half/double
+                if bpm < 30:
+                    bpm *= 2
+                elif bpm > 250:
+                    bpm /= 2
+                confidence = 0.50
+
+            # Lower confidence for short originals
+            if duration < 3:
+                confidence = min(confidence, 0.65)
+            elif duration < 6:
+                confidence = min(confidence, 0.80)
+
             return bpm, confidence
         except Exception:
             logger.warning("BPM extraction failed, using default", exc_info=True)
@@ -223,6 +262,17 @@ class AudioAnalyzer:
             return round(float(np.clip((centroid_score * 0.3 + rolloff_score * 0.3 + mfcc_score * 0.4), 0, 1)), 2)
         except Exception:
             return 0.5
+
+    def _compute_spectral_features(self, y: np.ndarray, sr: int) -> tuple[float, float]:
+        """Compute spectral centroid (brightness) and bandwidth for genre matching."""
+        try:
+            centroid = self.librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+            bandwidth = self.librosa.feature.spectral_bandwidth(y=y, sr=sr)[0]
+            brightness = float(np.clip(np.mean(centroid) / 6000, 0, 1))
+            bw_norm = float(np.clip(np.mean(bandwidth) / 4000, 0, 1))
+            return brightness, bw_norm
+        except Exception:
+            return 0.5, 0.5
 
     def _extract_danceability(self, y: np.ndarray, sr: int) -> float:
         """Estimate danceability from tempo regularity + spectral flux."""
@@ -322,43 +372,60 @@ class AudioAnalyzer:
         return unique[:4]
 
     def _classify_genre(self, bpm: float, energy: float, acousticness: float, danceability: float) -> tuple[str, float]:
-        """Simple rule-based genre classifier."""
-        best_genre = "Indie Pop"
-        best_score = -1.0
+        """Multi-feature genre classifier using BPM, spectral, energy, and acoustic profiles."""
+        best_genre = "Indie / Alternative"
+        best_score = -999.0
 
-        for genre, profile in self.GENRE_PROFILES.items():
-            lo, hi = profile["bpm_range"]
-            score = 1.0
+        for genre, (bpm_lo, bpm_hi, cent_hi, bw_hi, en_hi, ac_hi, d_hi) in self.GENRE_PROFILES.items():
+            score = 0.0
 
-            # BPM match
-            if lo <= bpm <= hi:
-                score += 2.0
-            elif lo - 20 <= bpm <= hi + 20:
-                score += 1.0
+            # BPM match — strongest factor
+            if bpm_lo <= bpm <= bpm_hi:
+                score += 3.0
+            elif bpm_lo - 15 <= bpm <= bpm_hi + 15:
+                score += 1.5
+            elif bpm_lo - 30 <= bpm <= bpm_hi + 30:
+                score += 0.5
             else:
-                score -= 1.0
+                score -= 2.0
 
-            # Acousticness
-            if profile["acoustic_low"]:
-                score += (1.0 - acousticness) * 1.5
+            # Spectral brightness (centroid + bandwidth)
+            brightness = (getattr(self, "_brightness", 0.5) or 0.5)
+            if cent_hi:
+                score += brightness * 1.5
             else:
-                score += acousticness * 1.5
+                score += (1.0 - brightness) * 1.5
+
+            # Bandwidth match
+            sb = (getattr(self, "_spec_bandwidth_norm", 0.5) or 0.5)
+            if bw_hi:
+                score += sb * 1.0
+            else:
+                score += (1.0 - sb) * 1.0
 
             # Energy
-            if profile["energy_high"]:
+            if en_hi:
                 score += energy * 2.0
             else:
                 score += (1.0 - energy) * 2.0
 
-            # Danceability bonus
-            score += danceability * 0.5
+            # Acousticness
+            if ac_hi:
+                score += acousticness * 2.0
+            else:
+                score += (1.0 - acousticness) * 1.5
+
+            # Danceability
+            if d_hi:
+                score += danceability * 1.0
+            else:
+                score += (1.0 - danceability) * 0.5
 
             if score > best_score:
                 best_score = score
                 best_genre = genre
 
-        # Normalize confidence
-        confidence = min(0.95, max(0.45, best_score / 7.0))
+        confidence = min(0.92, max(0.40, (best_score + 8) / 16))
         return best_genre, confidence
 
     def _generate_tips(self, bpm: float, key: str, genre: str, mood: list[str], energy: float, valence: float) -> list[dict]:
