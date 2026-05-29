@@ -85,7 +85,7 @@ Technical measurements:
 Based on the audio and these measurements, identify the genre, mood, and give 3 strategy tips.`;
 
     const audioBytes = Buffer.from(await file.arrayBuffer());
-    const mimeType = file.type || getMimeType(file.name);
+    const mimeType = getMimeType(file.name, file.type);
     const audioB64 = audioBytes.toString("base64");
 
     const errors: string[] = [];
@@ -192,7 +192,11 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
   return JSON.parse(text);
 }
 
-function getMimeType(filename: string): string {
+function getMimeType(filename: string, fileType?: string): string {
+  // Only trust file.type if it's a real audio MIME
+  if (fileType && fileType.startsWith("audio/") && !fileType.includes("octet-stream")) {
+    return fileType;
+  }
   const map: Record<string, string> = {
     mp3: "audio/mpeg", mpeg: "audio/mpeg", wav: "audio/wav", wave: "audio/wav",
     flac: "audio/flac", m4a: "audio/mp4", mp4: "audio/mp4",
