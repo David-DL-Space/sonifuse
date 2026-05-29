@@ -101,6 +101,27 @@ async def analyze_audio(file: UploadFile = File(...)):
     return result
 
 
+@app.get("/debug/gemini")
+async def debug_gemini():
+    """Test Gemini connectivity directly."""
+    from app.gemini_client import gemini
+    import traceback
+    result = {"available": gemini.available, "has_key": bool(gemini._api_key)}
+    if gemini.available:
+        try:
+            client = gemini.client
+            resp = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents="Say hi in one word",
+                config={"max_output_tokens": 10},
+            )
+            result["test"] = resp.text.strip()
+        except Exception as e:
+            result["error"] = str(e)[:300]
+            result["traceback"] = traceback.format_exc()[-500:]
+    return result
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc: HTTPException):
     return ErrorResponse(error="Request failed", detail=exc.detail).model_dump()
