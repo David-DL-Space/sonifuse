@@ -48,6 +48,9 @@ class AnalysisResult(BaseModel):
     # Strategy tips
     tips: list[StrategyTip]
 
+    # Debug — Gemini errors if fallback was used
+    _gemini_errors: list[str] = []
+
 
 class ErrorResponse(BaseModel):
     error: str

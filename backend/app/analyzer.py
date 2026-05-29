@@ -133,6 +133,7 @@ class AudioAnalyzer:
             "acousticness": 0.0 if acousticness != acousticness else round(acousticness, 2),
             "instrumentalness": 0.0 if instrumentalness != instrumentalness else round(instrumentalness, 2),
             "tips": tips,
+            "_gemini_errors": gemini_result.get("_gemini_errors", []),
         }
 
     # ── internal ──────────────────────────────────────────────────
