@@ -55,7 +55,12 @@ app.add_middleware(
 async def health():
     import os as _os
     key_ok = bool(_os.getenv("GEMINI_API_KEY"))
-    return {"status": "ok", "service": "sonifuse-backend", "gemini": key_ok}
+    try:
+        from google import genai
+        genai_ok = True
+    except ImportError:
+        genai_ok = False
+    return {"status": "ok", "service": "sonifuse-backend", "gemini": key_ok, "genai_pkg": genai_ok}
 
 
 @app.post("/api/analyze", response_model=AnalysisResult)
