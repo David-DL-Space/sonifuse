@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sonifuse-50: #f0f4ff;
+  --color-sonifuse-100: #dbe4ff;
+  --color-sonifuse-200: #bac8ff;
+  --color-sonifuse-300: #91a7ff;
+  --color-sonifuse-400: #748ffc;
+  --color-sonifuse-500: #5c7cfa;
+  --color-sonifuse-600: #4c6ef5;
+  --color-sonifuse-700: #4263eb;
+  --color-sonifuse-800: #3b5bdb;
+  --color-sonifuse-900: #364fc7;
+}
