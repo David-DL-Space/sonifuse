@@ -152,6 +152,13 @@ function ReportContent() {
 
       {/* CTA */}
       <SubscribeCTA />
+
+      {/* Back link */}
+      <div className="text-center">
+        <a href="/" className="text-slate-500 hover:text-slate-400 text-sm">
+          ← Analyze another track
+        </a>
+      </div>
     </main>
   );
 }
@@ -207,14 +214,6 @@ function SubscribeCTA() {
     </div>
   );
 
-      {/* Back link */}
-      <div className="text-center">
-        <a href="/" className="text-slate-500 hover:text-slate-400 text-sm">
-          ← Analyze another track
-        </a>
-      </div>
-    </main>
-  );
 }
 
 export default function ReportPage() {
