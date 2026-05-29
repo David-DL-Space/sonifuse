@@ -6,6 +6,8 @@ Features: BPM, key, genre, mood, energy, valence, danceability, acousticness, in
 
 import io
 import logging
+import subprocess
+import tempfile
 from typing import Optional
 
 import numpy as np
@@ -68,29 +70,76 @@ class AudioAnalyzer:
             "filename": filename,
             "duration": round(duration, 2),
             "sample_rate": sr,
-            "bpm": round(bpm, 1),
+            "bpm": round(bpm, 1) if bpm == bpm else 120.0,
             "key": key,
-            "key_confidence": round(key_conf, 2),
+            "key_confidence": 0.0 if key_conf != key_conf else round(key_conf, 2),
             "genre": genre,
-            "genre_confidence": round(genre_conf, 2),
+            "genre_confidence": 0.0 if genre_conf != genre_conf else round(genre_conf, 2),
             "mood": mood,
-            "energy": round(energy, 2),
-            "valence": round(valence, 2),
-            "danceability": round(danceability, 2),
-            "acousticness": round(acousticness, 2),
-            "instrumentalness": round(instrumentalness, 2),
+            "energy": 0.0 if energy != energy else round(energy, 2),
+            "valence": 0.0 if valence != valence else round(valence, 2),
+            "danceability": 0.0 if danceability != danceability else round(danceability, 2),
+            "acousticness": 0.0 if acousticness != acousticness else round(acousticness, 2),
+            "instrumentalness": 0.0 if instrumentalness != instrumentalness else round(instrumentalness, 2),
             "tips": tips,
         }
 
     # ── internal ──────────────────────────────────────────────────
 
     def _load_audio(self, audio_bytes: bytes) -> tuple[np.ndarray, int]:
-        """Decode audio bytes → (waveform, sample_rate)."""
-        data, sr = sf.read(io.BytesIO(audio_bytes), dtype="float32")
+        """Decode audio bytes → (waveform, sample_rate). Tries soundfile first, falls back to ffmpeg."""
+        # Try soundfile first (WAV, FLAC, OGG)
+        try:
+            data, sr = sf.read(io.BytesIO(audio_bytes), dtype="float32")
+        except Exception:
+            # Fall back to ffmpeg for M4A, MP3, AAC, etc.
+            logger.info("soundfile decode failed, trying ffmpeg...")
+            data, sr = self._load_via_ffmpeg(audio_bytes)
+
         # Convert to mono
         if data.ndim > 1:
             data = np.mean(data, axis=1)
         return data.astype(np.float32), sr
+
+    def _load_via_ffmpeg(self, audio_bytes: bytes) -> tuple[np.ndarray, int]:
+        """Decode audio using ffmpeg. Writes input to temp file so MP4/M4A can seek."""
+        import os
+        import tempfile
+
+        # Write input bytes to a temp file (needed for seekable containers like MP4/M4A)
+        with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as inp:
+            inp.write(audio_bytes)
+            in_path = inp.name
+
+        out_path = f"/tmp/sonifuse_{os.getpid()}.wav"
+        try:
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", in_path,
+                    "-f", "wav",
+                    "-acodec", "pcm_s16le",
+                    "-ac", "1",
+                    "-ar", "44100",
+                    out_path,
+                ],
+                capture_output=True,
+                timeout=60,
+            )
+            if proc.returncode != 0:
+                stderr = proc.stderr.decode(errors="replace")[-300:]
+                raise RuntimeError(f"ffmpeg decode failed: {stderr}")
+
+            data, sr = sf.read(out_path, dtype="float32")
+            if len(data) == 0:
+                raise RuntimeError("ffmpeg produced empty audio")
+            return data, int(sr)
+        finally:
+            for p in (in_path, out_path):
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
 
     # ── feature extractors ────────────────────────────────────────
 
@@ -98,7 +147,7 @@ class AudioAnalyzer:
         """Estimate BPM using onset + tempo tracking."""
         try:
             onset_env = self.librosa.onset.onset_strength(y=y, sr=sr)
-            tempo = self.librosa.feature.rhythm.tempo(onset_envelope=onset_env, sr=sr)
+            tempo = self.librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
             bpm = float(tempo[0])
             confidence = 0.85 if 60 <= bpm <= 180 else 0.6
             return bpm, confidence
