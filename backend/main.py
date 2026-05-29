@@ -8,6 +8,19 @@ GET  /health       — health check
 import uuid
 import logging
 
+# Load .env manually — python-dotenv 1.2.2 has a load_dotenv() bug
+import os as _os
+_env_path = _os.path.join(_os.path.dirname(__file__), ".env")
+if _os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                _os.environ[_k.strip()] = _v.strip()
+    import logging as _logging
+    _logging.getLogger(__name__).info("Loaded .env file")
+
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -77,7 +90,7 @@ async def analyze_audio(file: UploadFile = File(...)):
 
     result["id"] = uuid.uuid4().hex[:12]
 
-    logger.info(f"Analysis complete: id={result['id']} bpm={result['bpm']} genre={result['genre']}")
+    logger.info(f"Analysis complete: id={result['id']} bpm={result['bpm']} genres={[g['name'] for g in result.get('genres', [])]}")
     return result
 
 

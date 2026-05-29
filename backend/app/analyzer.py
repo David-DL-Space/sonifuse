@@ -13,6 +13,8 @@ from typing import Optional
 import numpy as np
 import soundfile as sf
 
+from app.gemini_client import gemini as gemini_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,9 +76,41 @@ class AudioAnalyzer:
             bpm_conf *= 0.6
             key_conf *= 0.5
 
-        mood = self._classify_mood(energy, valence, bpm, key)
-        genre, genre_conf = self._classify_genre(bpm, energy, acousticness, danceability)
-        tips = self._generate_tips(bpm, key, genre, mood, energy, valence)
+        # ── Gemini: genre, mood, style, tips ──────────────────────
+        # Determine MIME type from filename
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "wav"
+        mime_map = {
+            "mp3": "audio/mpeg", "mpeg": "audio/mpeg",
+            "wav": "audio/wav", "wave": "audio/wav",
+            "flac": "audio/flac",
+            "m4a": "audio/mp4", "mp4": "audio/mp4",
+            "ogg": "audio/ogg", "opus": "audio/ogg",
+            "webm": "audio/webm",
+            "aac": "audio/aac",
+        }
+        mime_type = mime_map.get(ext, "audio/wav")
+
+        # Send first 30s of audio + librosa data to Gemini
+        # Resample audio to 16kHz mono PCM for Gemini
+        gemini_bytes = self._prepare_audio_for_gemini(audio_bytes)
+
+        gemini_result = gemini_client.analyze(
+            audio_bytes=gemini_bytes or audio_bytes,
+            mime_type=mime_type,
+            bpm=bpm,
+            key=key,
+            energy=energy,
+            valence=valence,
+            danceability=danceability,
+            acousticness=acousticness,
+            instrumentalness=instrumentalness,
+            brightness=self._brightness,
+            duration=duration,
+        )
+
+        genre_conf = gemini_result["genre_confidence"]
+        mood = gemini_result["mood"]
+        tips = gemini_result["tips"]
 
         return {
             "filename": filename,
@@ -85,9 +119,14 @@ class AudioAnalyzer:
             "bpm": round(bpm, 1) if bpm == bpm else 120.0,
             "key": key,
             "key_confidence": 0.0 if key_conf != key_conf else round(key_conf, 2),
-            "genre": genre,
+            "genres": gemini_result.get("genres", [{"name": "Indie / Alternative", "confidence": 0.5, "parent": "Alternative"}]),
             "genre_confidence": 0.0 if genre_conf != genre_conf else round(genre_conf, 2),
             "mood": mood,
+            "style_description": gemini_result.get("style_description", ""),
+            "era": gemini_result.get("era", []),
+            "region": gemini_result.get("region", []),
+            "scene": gemini_result.get("scene", []),
+            "use_cases": gemini_result.get("use_cases", []),
             "energy": 0.0 if energy != energy else round(energy, 2),
             "valence": 0.0 if valence != valence else round(valence, 2),
             "danceability": 0.0 if danceability != danceability else round(danceability, 2),
@@ -112,6 +151,30 @@ class AudioAnalyzer:
         if data.ndim > 1:
             data = np.mean(data, axis=1)
         return data.astype(np.float32), sr
+
+    def _prepare_audio_for_gemini(self, audio_bytes: bytes) -> bytes:
+        """Convert audio to 16kHz mono PCM for Gemini. Returns original if ffmpeg unavailable."""
+        try:
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", "pipe:0",
+                    "-f", "s16le",
+                    "-acodec", "pcm_s16le",
+                    "-ac", "1",
+                    "-ar", "16000",
+                    "-t", "30",
+                    "pipe:1",
+                ],
+                input=audio_bytes,
+                capture_output=True,
+                timeout=30,
+            )
+            if proc.returncode == 0 and len(proc.stdout) > 100:
+                return proc.stdout
+            return audio_bytes
+        except Exception:
+            return audio_bytes
 
     def _load_via_ffmpeg(self, audio_bytes: bytes) -> tuple[np.ndarray, int]:
         """Decode audio using ffmpeg. Writes input to temp file so MP4/M4A can seek."""

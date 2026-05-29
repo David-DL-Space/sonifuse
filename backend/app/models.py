@@ -2,6 +2,18 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+class GenreLabel(BaseModel):
+    """Multi-label genre with confidence and hierarchy."""
+    name: str           # e.g. "Deep House"
+    confidence: float   # 0–1
+    parent: str = ""    # e.g. "House" → parent of "Deep House"
+
+
+class StrategyTip(BaseModel):
+    title: str
+    body: str
+
+
 class AnalysisResult(BaseModel):
     """Complete audio analysis result returned to the frontend."""
     id: str
@@ -14,9 +26,9 @@ class AnalysisResult(BaseModel):
     key: str
     key_confidence: float
 
-    # Genre
-    genre: str
-    genre_confidence: float
+    # Genre — multi-label with hierarchy
+    genres: list[GenreLabel]       # e.g. [{name:"Deep House", confidence:0.85, parent:"House"}]
+    genre_confidence: float        # overall confidence
 
     # Mood / emotional profile
     mood: list[str]
@@ -26,13 +38,15 @@ class AnalysisResult(BaseModel):
     acousticness: float    # 0–1
     instrumentalness: float  # 0–1
 
-    # Strategy tips (generated based on analysis)
-    tips: list["StrategyTip"]
+    # Rich dimensions
+    style_description: str = ""
+    era: list[str] = []             # e.g. ["80s", "Retro", "Modern"]
+    region: list[str] = []          # e.g. ["Japanese", "Latin", "Nordic"]
+    scene: list[str] = []           # e.g. ["Bedroom Pop", "Underground Club", "Festival Anthem"]
+    use_cases: list[str] = []       # e.g. ["Workout", "Study", "Driving", "Party"]
 
-
-class StrategyTip(BaseModel):
-    title: str
-    body: str
+    # Strategy tips
+    tips: list[StrategyTip]
 
 
 class ErrorResponse(BaseModel):
