@@ -1,4 +1,4 @@
 {
   "framework": "nextjs",
-  "installCommand": "npm install -g npm@latest && npm install"
+  "installCommand": "pnpm install --frozen-lockfile"
 }
