@@ -151,19 +151,61 @@ function ReportContent() {
       )}
 
       {/* CTA */}
+      <SubscribeCTA />
+    </main>
+  );
+}
+
+function SubscribeCTA() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  const handleSubscribe = async () => {
+    if (!email) return;
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  if (status === "done") {
+    return (
       <div className="text-center pt-8">
-        <p className="text-slate-500 text-sm mb-4">Want the full report with competitor analysis?</p>
-        <div className="flex items-center justify-center gap-3">
-          <input
-            type="email"
-            placeholder="your@email.com"
-            className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-sonifuse-500"
-          />
-          <button className="bg-sonifuse-600 hover:bg-sonifuse-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-all">
-            Unlock Full Report
-          </button>
-        </div>
+        <p className="text-green-400 text-sm">✓ Got it! We'll keep you posted.</p>
       </div>
+    );
+  }
+
+  return (
+    <div className="text-center pt-8">
+      <p className="text-slate-500 text-sm mb-4">Want the full report with competitor analysis?</p>
+      <div className="flex items-center justify-center gap-3">
+        <input
+          type="email"
+          placeholder="your@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-sonifuse-500"
+        />
+        <button
+          onClick={handleSubscribe}
+          disabled={status === "loading"}
+          className="bg-sonifuse-600 hover:bg-sonifuse-500 disabled:opacity-50 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-all"
+        >
+          {status === "loading" ? "Sending..." : "Unlock Full Report"}
+        </button>
+      </div>
+      {status === "error" && <p className="text-red-400 text-xs mt-2">Something went wrong. Try again.</p>}
+    </div>
+  );
 
       {/* Back link */}
       <div className="text-center">
