@@ -4,31 +4,23 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 interface Analysis {
+  id: string;
+  filename: string;
+  duration: number;
+  sample_rate: number;
   bpm: number;
   key: string;
+  key_confidence: number;
   genre: string;
   genreConfidence: number;
   mood: string[];
   energy: number;
+  valence: number;
   danceability: number;
   acousticness: number;
   instrumentalness: number;
   tips: { title: string; body: string }[];
 }
-
-// Placeholder — real data will come from server-side fetch in production
-const placeholder: Analysis = {
-  bpm: 128,
-  key: "Am",
-  genre: "Indie Pop",
-  genreConfidence: 0.82,
-  mood: ["Dreamy", "Energetic", "Melancholic"],
-  energy: 0.74,
-  danceability: 0.61,
-  acousticness: 0.35,
-  instrumentalness: 0.12,
-  tips: [],
-};
 
 function Bar({ label, value, color = "bg-sonifuse-500" }: { label: string; value: number; color?: string }) {
   return (
@@ -50,13 +42,29 @@ function ReportContent() {
   const id = searchParams.get("id");
   const [data, setData] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // In MVP, use placeholder. In production, fetch from /api/results?id=xxx
-    setTimeout(() => {
-      setData(placeholder);
-      setLoading(false);
-    }, 800);
+    // Try to load from sessionStorage first
+    const stored = sessionStorage.getItem("sonifuse_result");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Map snake_case → camelCase for frontend
+        setData({
+          ...parsed,
+          genreConfidence: parsed.genre_confidence ?? 0,
+          sample_rate: parsed.sample_rate ?? 0,
+          key_confidence: parsed.key_confidence ?? 0,
+        });
+        setLoading(false);
+        return;
+      } catch {
+        // fall through to error
+      }
+    }
+    setError("Analysis data not found. Please upload your track again.");
+    setLoading(false);
   }, [id]);
 
   if (loading) {
@@ -70,10 +78,13 @@ function ReportContent() {
     );
   }
 
-  if (!data) {
+  if (error || !data) {
     return (
-      <main className="flex items-center justify-center min-h-screen">
-        <p className="text-slate-400">Report not found.</p>
+      <main className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <p className="text-slate-400">{error || "Report not found."}</p>
+        <a href="/" className="text-sonifuse-400 hover:text-sonifuse-300 text-sm">
+          ← Upload another track
+        </a>
       </main>
     );
   }
@@ -82,6 +93,7 @@ function ReportContent() {
     <main className="max-w-2xl mx-auto px-4 py-16 space-y-12">
       {/* Header */}
       <div className="text-center space-y-2">
+        <p className="text-slate-500 text-xs">{data.filename}</p>
         <p className="text-sonifuse-400 text-sm font-medium tracking-wide uppercase">Your Music DNA</p>
         <h1 className="text-3xl md:text-4xl font-bold">
           {data.genre}{" "}
@@ -95,13 +107,13 @@ function ReportContent() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           ["BPM", data.bpm],
-          ["Key", data.key],
+          ["Key", `${data.key} (${Math.round(data.key_confidence * 100)}%)`],
           ["Energy", `${Math.round(data.energy * 100)}%`],
           ["Dance", `${Math.round(data.danceability * 100)}%`],
         ].map(([label, value]) => (
           <div key={label as string} className="bg-slate-900 rounded-xl p-4 text-center">
             <p className="text-slate-500 text-xs uppercase tracking-wide">{label}</p>
-            <p className="text-2xl font-bold mt-1">{value}</p>
+            <p className="text-xl font-bold mt-1">{value}</p>
           </div>
         ))}
       </div>
@@ -122,31 +134,21 @@ function ReportContent() {
         <Bar label="Danceability" value={data.danceability} color="bg-green-500" />
         <Bar label="Acousticness" value={data.acousticness} color="bg-amber-500" />
         <Bar label="Instrumental" value={data.instrumentalness} color="bg-purple-500" />
+        <Bar label="Valence" value={data.valence} color="bg-pink-500" />
       </div>
 
       {/* Strategy Tips */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Strategy Recommendations</h2>
-        {(data.tips && data.tips.length > 0 ? data.tips : [
-          {
-            title: "Your sound leans Indie Pop — ride the playlist wave",
-            body: `Indie Pop tracks on Spotify grew 34% YoY. With your ${data.bpm} BPM tempo and ${data.key} key, you'd fit perfectly on "Indie Pop Rising" and "Fresh Finds" playlists. Submit 2 weeks before release.`,
-          },
-          {
-            title: `Try a ${data.bpm > 120 ? "TikTok" : "YouTube Shorts"} teaser campaign`,
-            body: `At ${data.bpm} BPM, your track has the energy for short-form video. Post a 15-second hook clip with a "can you guess the genre?" caption. This format averages 3x engagement over static posts.`,
-          },
-          {
-            title: "Drop on a Thursday — here's why",
-            body: "Your genre's audience is most active Thursday–Saturday evenings. Releasing Thursday gives Spotify's algorithm 24 hours to index your track before New Music Friday playlists refresh.",
-          },
-        ]).map((tip, i) => (
-          <div key={i} className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <h3 className="font-semibold text-sonifuse-300 mb-2">{tip.title}</h3>
-            <p className="text-slate-400 text-sm leading-relaxed">{tip.body}</p>
-          </div>
-        ))}
-      </div>
+      {data.tips && data.tips.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Strategy Recommendations</h2>
+          {data.tips.map((tip, i) => (
+            <div key={i} className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+              <h3 className="font-semibold text-sonifuse-300 mb-2">{tip.title}</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">{tip.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* CTA */}
       <div className="text-center pt-8">
@@ -161,6 +163,13 @@ function ReportContent() {
             Unlock Full Report
           </button>
         </div>
+      </div>
+
+      {/* Back link */}
+      <div className="text-center">
+        <a href="/" className="text-slate-500 hover:text-slate-400 text-sm">
+          ← Analyze another track
+        </a>
       </div>
     </main>
   );

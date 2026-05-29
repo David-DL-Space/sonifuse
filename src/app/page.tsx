@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -23,11 +25,16 @@ export default function Home() {
         method: "POST",
         body: formData,
       });
-      if (!res.ok) throw new Error("Analysis failed");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Analysis failed" }));
+        throw new Error(err.detail || "Analysis failed");
+      }
       const data = await res.json();
+      // Store result for the report page
+      sessionStorage.setItem("sonifuse_result", JSON.stringify(data));
       router.push(`/report?id=${data.id}`);
     } catch (e) {
-      setError("Something went wrong. Try again.");
+      setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
     } finally {
       setLoading(false);
     }
@@ -73,7 +80,7 @@ export default function Home() {
           <div className="space-y-3">
             <div className="text-4xl">🎵</div>
             <p className="text-slate-400">Drag & drop your track here</p>
-            <p className="text-slate-600 text-sm">MP3, WAV, FLAC up to 20MB</p>
+            <p className="text-slate-600 text-sm">MP3, WAV, FLAC up to 50MB</p>
           </div>
         )}
       </div>
