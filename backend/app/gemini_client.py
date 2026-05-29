@@ -112,6 +112,7 @@ class GeminiClient:
         if not self.available:
             return self._fallback(bpm, energy, valence, key)
 
+        errors = []
         prompt = USER_PROMPT_TEMPLATE.format(
             bpm=round(bpm, 1),
             key=key,
@@ -155,22 +156,21 @@ class GeminiClient:
                 }
 
             except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"{model}: bad response — {e}")
+                errors.append(f"{model}: bad JSON — {str(e)[:60]}")
                 continue
             except Exception as e:
                 err_msg = str(e)
-                # 503 / 429 → try next model; other errors → fallback
                 if any(x in err_msg for x in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
-                    logger.warning(f"{model}: {err_msg[:80]} → trying next")
+                    errors.append(f"{model}: {err_msg[:60]}")
                     continue
-                logger.warning(f"{model}: unexpected error — {err_msg[:120]}")
-                import traceback
-                logger.warning(traceback.format_exc())
-                break  # Don't retry on unknown errors
+                errors.append(f"{model}: {err_msg[:100]}")
+                break
 
         # All models failed
-        logger.warning("All Gemini models exhausted, using rule-based fallback")
-        return self._fallback(bpm, energy, valence, key)
+        logger.warning(f"All Gemini models exhausted: {'; '.join(errors)}")
+        result = self._fallback(bpm, energy, valence, key)
+        result["_gemini_errors"] = errors
+        return result
 
     def _parse_json(self, text: str) -> dict:
         """Robust JSON parsing — strips markdown fences, handles Gemini quirks."""
