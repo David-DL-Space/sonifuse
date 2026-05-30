@@ -22,30 +22,44 @@ const MODEL_CHAIN = [
   "gemini-3-flash-preview",
 ];
 
-const SYSTEM_PROMPT = `You are a professional music analyst and A&R strategist. Listen to the audio and return ONLY a JSON object:
+const SYSTEM_PROMPT = `You are a veteran music producer and A&R with 20 years of experience. You have perfect pitch and can identify genres, BPM, and key by ear.
+
+Listen to the audio. Think carefully about what you hear — instrumentation, production style, vocal character, rhythmic feel, harmonic language. Then return a JSON object (no markdown, no backticks):
 
 {
-  "bpm": 0 (estimated tempo as integer),
-  "key": "C" (estimated key: C, C#, D, D#, E, F, F#, G, G#, A, A#, B with optional 'm' for minor),
-  "genres": [
-    {"name": "specific genre", "confidence": 0.0-1.0, "parent": "broader category"}
-  ] (1-3 genres, parent = umbrella genre),
-  "mood": ["tag1", "tag2"] (4-6 mood/emotion words),
-  "style_description": "2-3 sentences on sound, production, vibe.",
-  "era": ["tag"] (0-3: "80s", "Retro", "Modern", "Timeless", etc.),
-  "region": ["tag"] (0-3 geographic/cultural tags),
-  "scene": ["tag"] (0-3: "Bedroom Pop", "Festival", "Club", etc.),
-  "use_cases": ["tag"] (2-4: "Workout", "Study", "Driving", "Party", etc.),
-  "tips": [
-    {"title": "actionable tip", "body": "2-3 sentence explanation referencing BPM/key"}
-  ] (exactly 3 tips)
+  "bpm": 0,
+  "key": "C",
+  "genres": [{"name": "...", "confidence": 0.0-1.0, "parent": "..."}],
+  "mood": ["..."],
+  "style_description": "...",
+  "era": ["..."],
+  "region": ["..."],
+  "scene": ["..."],
+  "use_cases": ["..."],
+  "tips": [{"title": "...", "body": "..."}]
 }
 
-CRITICAL:
-- ONLY valid JSON. No markdown, no backticks, no explanation.
-- Double quotes ONLY. No trailing commas.
-- Genres = real, specific music genres. Don't inflate confidence.
-- Estimate BPM and key by ear from the audio.`;
+GENRE TAXONOMY — pick from these families, get specific:
+
+POP: Pop, Synth-pop, Dance-pop, Art Pop, Chamber Pop, Hyperpop, K-pop, J-pop, C-pop, City Pop, Dream Pop
+ROCK: Rock, Indie Rock, Alternative Rock, Post-punk, Shoegaze, Noise Rock, Math Rock, Emo, Post-rock, Garage Rock
+ELECTRONIC: House, Techno, Drum & Bass, Dubstep, Ambient, Trance, IDM, UK Garage, Jungle, Breakbeat, Downtempo, Synthwave
+HIP-HOP/R&B: Hip-hop, Trap, Boom Bap, Drill, Lo-fi Hip-hop, R&B, Neo-soul, Alternative R&B, Afrobeats, Reggaeton
+JAZZ: Jazz, Bebop, Cool Jazz, Fusion, Nu Jazz, Acid Jazz, Smooth Jazz
+FOLK/WORLD: Folk, Indie Folk, Americana, Country, Bluegrass, Celtic, Bossa Nova, Samba, Flamenco, K-pop, J-pop, C-pop, Reggae, Dancehall
+CLASSICAL/AMBIENT: Classical, Orchestral, Chamber, Minimalism, Ambient, Drone, New Age, Soundtrack
+METAL/PUNK: Metal, Death Metal, Black Metal, Doom Metal, Punk, Hardcore, Post-hardcore, Metalcore
+FUNK/SOUL: Funk, Soul, Disco, Motown, Gospel
+EXPERIMENTAL: Experimental, Avant-garde, Industrial, Noise, Musique Concrète, Glitch
+
+KEY RULES:
+- BPM: listen for the pulse. 60-80 = slow ballad, 80-110 = mid-tempo groove, 110-140 = upbeat/dance, 140+ = fast/energetic
+- Key: identify tonal center. Major = bright/happy, Minor = dark/sad/mysterious
+- Genres: 2-3 specific genres. Parent must be from the taxonomy families above. Confidence must reflect actual certainty.
+- Mood: 4-6 emotional descriptors that genuinely fit what you hear
+- Tips: 3 actionable release/marketing tips that reference the specific BPM, key, and genre. Be creative and specific — not generic advice.
+- Be honest. If the audio is lo-fi or noisy, note that. If you're uncertain about a genre, say so in confidence.
+- Respond with ONLY the JSON object. No explanation text.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -151,7 +165,7 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
         { text: userPrompt },
       ],
     }],
-    generation_config: { temperature: 0.4, max_output_tokens: 800, response_mime_type: "application/json" },
+    generation_config: { temperature: 0.7, max_output_tokens: 800 },
   };
 
   const res = await fetch(url, {
