@@ -18,7 +18,6 @@ export default function Home() {
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const pressTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setIsMobile("ontouchstart" in window || navigator.maxTouchPoints > 0);
@@ -93,21 +92,6 @@ export default function Home() {
     if (timerRef.current) clearInterval(timerRef.current);
   }, []);
 
-  // ── Long press for mobile ──────────────────────────────────────
-
-  const handleTouchStart = useCallback(() => {
-    if (!isMobile) return;
-    pressTimer.current = setTimeout(() => startRecording(), 300);
-  }, [isMobile, startRecording]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (pressTimer.current) {
-      clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-    if (recording) stopRecording();
-  }, [recording, stopRecording]);
-
   return (
     <main className="flex flex-col items-center justify-center min-h-screen px-4 text-center">
       <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-4">
@@ -151,43 +135,42 @@ export default function Home() {
         )}
       </div>
 
-      {/* Mobile: Record button */}
+      {/* Mobile: Start / Stop recording buttons */}
       {isMobile && !file && (
-        <div className="mb-8">
-          <button
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
-            onMouseDown={handleTouchStart}
-            onMouseUp={handleTouchEnd}
-            onMouseLeave={handleTouchEnd}
-            className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-200 select-none ${
-              recording
-                ? "bg-red-500 scale-110 shadow-lg shadow-red-500/50"
-                : "bg-sonifuse-600 hover:bg-sonifuse-500 active:scale-95"
-            }`}
-          >
-            {recording ? (
-              <div className="flex flex-col items-center gap-0.5">
-                <span className="text-white text-xs font-mono">{recordTime}s</span>
-                <div className="w-3 h-3 bg-white rounded-sm animate-pulse" />
+        <div className="mb-8 flex flex-col items-center gap-4">
+          {!recording ? (
+            <button
+              onClick={startRecording}
+              className="w-20 h-20 rounded-full bg-sonifuse-600 hover:bg-sonifuse-500 active:scale-95 flex flex-col items-center justify-center gap-1 transition-all duration-200 select-none"
+            >
+              <span className="text-2xl">🎤</span>
+              <span className="text-white text-[10px] font-medium leading-tight">
+                Tap to<br />Record
+              </span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-6">
+              {/* Recording indicator */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-white text-sm font-mono">{recordTime}s</span>
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-2xl">🎤</span>
-                <span className="text-white text-[10px] font-medium leading-tight">
-                  Hold to<br />Record
-                </span>
-              </div>
-            )}
-          </button>
+              {/* Stop button */}
+              <button
+                onClick={stopRecording}
+                className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-400 active:scale-95 flex items-center justify-center transition-all duration-200 shadow-lg shadow-red-500/30"
+              >
+                <span className="text-white text-lg font-bold">■</span>
+              </button>
+            </div>
+          )}
           {recording && (
-            <p className="text-red-400 text-xs mt-3 animate-pulse">
-              Recording… release to analyze
+            <p className="text-red-400 text-xs animate-pulse">
+              Recording… tap ■ to analyze
             </p>
           )}
           {!recording && (
-            <p className="text-slate-500 text-xs mt-3">or</p>
+            <p className="text-slate-500 text-xs">or</p>
           )}
         </div>
       )}
