@@ -173,7 +173,7 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
         { text: userPrompt },
       ],
     }],
-    generation_config: { temperature: 0.4, max_output_tokens: 800 },
+    generation_config: { temperature: 0.4, max_output_tokens: 800, response_mime_type: "application/json" },
   };
 
   const res = await fetch(url, {
