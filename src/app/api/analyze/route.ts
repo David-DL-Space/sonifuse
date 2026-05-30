@@ -91,8 +91,9 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
     const audioB64 = audioBytes.toString("base64");
 
     const errors: string[] = [];
-    const rawTexts: string[] = [];
+    const debug: string[] = [];
     for (const model of MODEL_CHAIN) {
+      debug.push(`try:${model}`);
       try {
         const result = await callGemini(model, SYSTEM_PROMPT, userPrompt, audioB64, mimeType);
         if (result) {
@@ -123,6 +124,7 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
             tips: result.tips || fallbackTips(features.bpm, features.key),
             _gemini_errors: [],
             _model: model,
+            _debug: debug,
           });
         }
       } catch (e: unknown) {
@@ -130,9 +132,11 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
         if (msg.includes("503") || msg.includes("429") || msg.includes("UNAVAILABLE") || msg.includes("RESOURCE_EXHAUSTED")
             || msg.includes("JSON") || msg.includes("Unterminated") || msg.includes("Expected")) {
           errors.push(`${model}: ${msg.slice(0, 60)}`);
+          debug.push(`err:${model}:${msg.slice(0, 40)}`);
           continue;
         }
         errors.push(`${model}: ${msg.slice(0, 100)}`);
+        debug.push(`fatal:${model}:${msg.slice(0, 40)}`);
         break;
       }
     }
@@ -157,6 +161,7 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
       era: [], region: [], scene: [], use_cases: [],
       tips: fallbackTips(features.bpm, features.key),
       _gemini_errors: errors,
+      _debug: debug,
     });
   } catch (e: unknown) {
     console.error("Analyze error:", e);
