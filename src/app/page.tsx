@@ -56,7 +56,11 @@ export default function Home() {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      // iOS Safari doesn't support audio/webm; fall back to default MIME
+      const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4"
+        : "";
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
       mediaRecorder.current = recorder;
       chunks.current = [];
 
@@ -66,8 +70,10 @@ export default function Home() {
 
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunks.current, { type: "audio/webm" });
-        const audioFile = new File([blob], `recording_${Date.now()}.webm`, { type: "audio/webm" });
+        const recMime = mediaRecorder.current?.mimeType || "audio/webm";
+        const ext = recMime.includes("mp4") ? "m4a" : "webm";
+        const blob = new Blob(chunks.current, { type: recMime });
+        const audioFile = new File([blob], `recording_${Date.now()}.${ext}`, { type: recMime });
         doAnalyze(audioFile);
       };
 

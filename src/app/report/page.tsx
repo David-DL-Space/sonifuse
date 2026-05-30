@@ -34,6 +34,8 @@ interface Analysis {
   _gemini_errors?: string[];
   _model?: string;
   _client_ts?: number;
+  _bytes?: number;
+  _hash?: string;
 }
 
 function Bar({ label, value, color = "bg-sonifuse-500" }: { label: string; value: number; color?: string }) {
@@ -245,6 +247,13 @@ function ReportContent() {
           ))}
         </div>
       )}
+
+      {/* Diagnostic: file fingerprint — confirms each upload is unique */}
+      <div className="bg-slate-900/50 rounded-xl p-3 text-center">
+        <p className="text-slate-600 text-[10px] font-mono">
+          {data._bytes != null ? `${(data._bytes/1024).toFixed(1)}KB` : "?"} · {data._hash || "?"}
+        </p>
+      </div>
 
       {/* CTA */}
       <SubscribeCTA />

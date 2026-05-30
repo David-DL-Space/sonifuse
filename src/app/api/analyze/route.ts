@@ -60,6 +60,10 @@ export async function POST(request: NextRequest) {
     const mimeType = getMimeType(file.name, file.type);
     const audioB64 = audioBytes.toString("base64");
 
+    // Diagnostic: hash first 4KB to detect duplicate uploads
+    const byteSize = audioBytes.length;
+    const headHash = audioBytes.slice(0, 4096).toString("base64").slice(0, 12);
+
     const userPrompt = `Analyze this audio recording. Estimate BPM and key from the audio, then identify genres, mood, and give 3 strategy tips. Respond with JSON only.`;
 
     const errors: string[] = [];
@@ -95,6 +99,8 @@ export async function POST(request: NextRequest) {
             _gemini_errors: [],
             _model: model,
             _debug: debug,
+            _bytes: byteSize,
+            _hash: headHash,
           });
         }
       } catch (e: unknown) {
@@ -126,6 +132,8 @@ export async function POST(request: NextRequest) {
       duration: 0, sample_rate: 44100,
       _gemini_errors: errors,
       _debug: debug,
+      _bytes: byteSize,
+      _hash: headHash,
     });
   } catch (e: unknown) {
     console.error("Analyze error:", e);
