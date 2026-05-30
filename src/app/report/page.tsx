@@ -33,6 +33,7 @@ interface Analysis {
   tips: { title: string; body: string }[];
   _gemini_errors?: string[];
   _model?: string;
+  _client_ts?: number;
 }
 
 function Bar({ label, value, color = "bg-sonifuse-500" }: { label: string; value: number; color?: string }) {
@@ -120,7 +121,12 @@ function ReportContent() {
     <main className="max-w-2xl mx-auto px-4 py-16 space-y-12">
       {/* Header */}
       <div className="text-center space-y-2">
-        <p className="text-slate-500 text-xs">{data.filename}</p>
+        <p className="text-slate-500 text-xs">
+          {data.filename}
+          <span className="text-slate-700 ml-2">
+            {data._client_ts ? `#${String(data._client_ts).slice(-6)}` : `#${data.id}`}
+          </span>
+        </p>
         <p className="text-sonifuse-400 text-sm font-medium tracking-wide uppercase">Your Music DNA</p>
         <h1 className="text-3xl md:text-4xl font-bold">
           {primaryGenre?.name || "Unknown"}{" "}

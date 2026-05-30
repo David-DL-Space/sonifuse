@@ -35,6 +35,8 @@ export default function Home() {
         throw new Error(err.detail || "Analysis failed");
       }
       const data = await res.json();
+      // Store with a timestamp so user can confirm it's a new analysis
+      data._client_ts = Date.now();
       sessionStorage.setItem("sonifuse_result", JSON.stringify(data));
       router.push(`/report?id=${data.id}`);
     } catch (e) {
