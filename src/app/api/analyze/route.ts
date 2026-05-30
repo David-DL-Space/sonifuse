@@ -4,7 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { parse as json5parse } from "json5";
 
 const KEY = (process.env as Record<string,string|undefined>)["GEMINI_API_KEY"]||"";
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -199,8 +198,34 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
 
 function robustParse(text: string): Record<string, unknown> {
   try { return JSON.parse(text); } catch {}
-  // JSON5 handles: single quotes, unquoted keys, trailing commas, comments
-  return json5parse(text) as Record<string, unknown>;
+
+  // Fix common Gemini JSON issues step by step
+  let s = text;
+
+  // 1. Remove comments
+  s = s.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+  // 2. Fix unterminated strings (missing closing quote on last value)
+  s = s.replace(/"([^"]*?)$/gm, '"$1"');
+
+  // 3. Quote unquoted keys: {key: → {"key":
+  s = s.replace(/([{,]\s*)([a-zA-Z_]\w*)(\s*:)/g, '$1"$2"$3');
+
+  // 4. Single-quoted keys: {'key': → {"key":
+  s = s.replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3');
+
+  // 5. Single-quoted string values (only when preceded by : and whitespace)
+  s = s.replace(/(:\s*)'([^']*)'/g, '$1"$2"');
+
+  // 6. Trailing commas before } or ]
+  s = s.replace(/,(\s*[}\]])/g, "$1");
+
+  // 7. Missing commas between array elements: " " → ","
+  s = s.replace(/("\s+")/g, '", "');
+
+  try { return JSON.parse(s); } catch {}
+
+  throw new Error("JSON parse failed: " + text.slice(0, 200));
 }
 
 function getMimeType(filename: string, fileType?: string): string {
