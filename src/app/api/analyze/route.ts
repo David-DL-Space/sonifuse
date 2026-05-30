@@ -127,7 +127,8 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("503") || msg.includes("429") || msg.includes("UNAVAILABLE") || msg.includes("RESOURCE_EXHAUSTED")) {
+        if (msg.includes("503") || msg.includes("429") || msg.includes("UNAVAILABLE") || msg.includes("RESOURCE_EXHAUSTED")
+            || msg.includes("JSON") || msg.includes("Unterminated") || msg.includes("Expected")) {
           errors.push(`${model}: ${msg.slice(0, 60)}`);
           continue;
         }
