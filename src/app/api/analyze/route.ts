@@ -189,7 +189,21 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
     if (text.endsWith("```")) text = text.slice(0, -3);
     text = text.trim();
   }
-  return JSON.parse(text);
+  return robustParse(text);
+}
+
+function robustParse(text: string): Record<string, unknown> {
+  // Try direct parse first
+  try { return JSON.parse(text); } catch {}
+  
+  // Fix common Gemini JSON issues
+  let cleaned = text
+    .replace(/'/g, '"')                     // single → double quotes
+    .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3') // unquoted keys → quoted
+    .replace(/,\s*}/g, '}')                 // trailing comma before }
+    .replace(/,\s*]/g, ']');                // trailing comma before ]
+  
+  return JSON.parse(cleaned);
 }
 
 function getMimeType(filename: string, fileType?: string): string {
