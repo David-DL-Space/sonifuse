@@ -14,6 +14,7 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
+  const [finalDuration, setFinalDuration] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -109,11 +110,12 @@ export default function Home() {
 
   const stopRecording = useCallback(() => {
     if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
+      setFinalDuration(recordTime);
       mediaRecorder.current.stop();
     }
     setRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
-  }, []);
+  }, [recordTime]);
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen px-4 text-center">
@@ -193,8 +195,8 @@ export default function Home() {
 
           {/* State 3: Preview playback */}
           {!recording && recordedBlob && recordedUrl && (
-            <div className="flex flex-col items-center gap-4 w-full max-w-xs">
-              <p className="text-slate-400 text-xs">🎧 Listen back:</p>
+            <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+              <p className="text-slate-300 text-sm font-medium">🎧 Recorded {finalDuration}s</p>
               {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <audio controls src={recordedUrl} className="w-full h-9 [&::-webkit-media-controls-panel]:bg-slate-800 rounded-lg" />
               <div className="flex gap-3">
