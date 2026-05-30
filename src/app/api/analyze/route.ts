@@ -38,13 +38,15 @@ Analyze the audio clip and the provided technical measurements. Return a JSON ob
   ] (exactly 3 tips)
 }
 
-Rules:
+CRITICAL RULES:
+- Respond ONLY with valid JSON. No markdown, no explanation, no code fences.
+- ALL property names and string values MUST use double quotes (") — NEVER single quotes.
+- No trailing commas.
 - Genres must be real, recognizable music genres. Prefer specific over generic.
 - Each genre must have a "parent" that is the broader category.
 - Mood tags should be emotional descriptors, not technical terms.
 - Tips must reference the specific BPM, key, and energy level.
-- Be honest about uncertainty — don't inflate confidence.
-- Respond ONLY with valid JSON, no markdown, no explanation.`;
+- Be honest about uncertainty — don't inflate confidence.`;
 
 export async function POST(request: NextRequest) {
   try {
