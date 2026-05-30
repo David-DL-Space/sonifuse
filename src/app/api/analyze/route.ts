@@ -132,7 +132,7 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
         if (msg.includes("503") || msg.includes("429") || msg.includes("UNAVAILABLE") || msg.includes("RESOURCE_EXHAUSTED")
             || msg.includes("JSON") || msg.includes("Unterminated") || msg.includes("Expected")) {
           errors.push(`${model}: ${msg.slice(0, 60)}`);
-          debug.push(`err:${model}:${msg.slice(0, 40)}`);
+          debug.push(`err:${model}:${msg.slice(0, 200)}`);
           continue;
         }
         errors.push(`${model}: ${msg.slice(0, 100)}`);
