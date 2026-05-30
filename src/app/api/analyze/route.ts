@@ -228,8 +228,8 @@ function robustParse(text: string): Record<string, unknown> {
 
   try { return JSON.parse(s); } catch {}
 
-  // Last resort: use Function constructor (like Python's json.loads leniency)
-  // Safe because input is from Gemini, not user-controlled
+  // Last resort: strip all non-printable chars and try Function()
+  s = s.replace(/[\x00-\x1f\x7f-\x9f]/g, " "); // strip control chars
   try {
     const fn = new Function(`return (${s})`);
     return fn() as Record<string, unknown>;
