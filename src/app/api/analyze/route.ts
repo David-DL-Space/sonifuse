@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 10; // Vercel hobby plan max
+
 const KEY = (process.env as Record<string,string|undefined>)["GEMINI_API_KEY"]||"";
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
