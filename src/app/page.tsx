@@ -14,6 +14,8 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -71,20 +73,39 @@ export default function Home() {
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const recMime = mediaRecorder.current?.mimeType || "audio/webm";
-        const ext = recMime.includes("mp4") ? "m4a" : "webm";
         const blob = new Blob(chunks.current, { type: recMime });
-        const audioFile = new File([blob], `recording_${Date.now()}.${ext}`, { type: recMime });
-        doAnalyze(audioFile);
+        // Revoke old URL and create new one for playback
+        if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+        const url = URL.createObjectURL(blob);
+        setRecordedBlob(blob);
+        setRecordedUrl(url);
       };
 
       recorder.start();
       setRecording(true);
       setRecordTime(0);
+      // Clear previous recording state
+      setRecordedBlob(null);
+      setRecordedUrl(null);
       timerRef.current = setInterval(() => setRecordTime((t) => t + 1), 1000);
     } catch {
       setError("Microphone access denied. Please allow mic permissions.");
     }
-  }, [doAnalyze]);
+  }, [doAnalyze, recordedUrl]);
+
+  const handleAnalyzeRecording = useCallback(() => {
+    if (!recordedBlob) return;
+    const recMime = mediaRecorder.current?.mimeType || "audio/webm";
+    const ext = recMime.includes("mp4") ? "m4a" : "webm";
+    const audioFile = new File([recordedBlob], `recording_${Date.now()}.${ext}`, { type: recMime });
+    doAnalyze(audioFile);
+  }, [recordedBlob, doAnalyze]);
+
+  const discardRecording = useCallback(() => {
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+  }, [recordedUrl]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
@@ -137,12 +158,14 @@ export default function Home() {
         )}
       </div>
 
-      {/* Mobile: Start / Stop recording buttons */}
+      {/* Mobile: Record → Preview → Analyze flow */}
       {isMobile && !file && (
         <div className="mb-8 flex flex-col items-center gap-4">
-          {!recording ? (
+          {/* State 1: Ready to record */}
+          {!recording && !recordedBlob && (
             <button
               onClick={startRecording}
+              disabled={loading}
               className="w-20 h-20 rounded-full bg-sonifuse-600 hover:bg-sonifuse-500 active:scale-95 flex flex-col items-center justify-center gap-1 transition-all duration-200 select-none"
             >
               <span className="text-2xl">🎤</span>
@@ -150,14 +173,15 @@ export default function Home() {
                 Tap to<br />Record
               </span>
             </button>
-          ) : (
+          )}
+
+          {/* State 2: Recording */}
+          {recording && (
             <div className="flex items-center gap-6">
-              {/* Recording indicator */}
               <div className="flex flex-col items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
                 <span className="text-white text-sm font-mono">{recordTime}s</span>
               </div>
-              {/* Stop button */}
               <button
                 onClick={stopRecording}
                 className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-400 active:scale-95 flex items-center justify-center transition-all duration-200 shadow-lg shadow-red-500/30"
@@ -166,12 +190,38 @@ export default function Home() {
               </button>
             </div>
           )}
+
+          {/* State 3: Preview playback */}
+          {!recording && recordedBlob && recordedUrl && (
+            <div className="flex flex-col items-center gap-4 w-full max-w-xs">
+              <p className="text-slate-400 text-xs">🎧 Listen back:</p>
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <audio controls src={recordedUrl} className="w-full h-9 [&::-webkit-media-controls-panel]:bg-slate-800 rounded-lg" />
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAnalyzeRecording}
+                  disabled={loading}
+                  className="bg-sonifuse-600 hover:bg-sonifuse-500 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all"
+                >
+                  {loading ? "Analyzing..." : "Analyze ✓"}
+                </button>
+                <button
+                  onClick={discardRecording}
+                  disabled={loading}
+                  className="bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-sm transition-all"
+                >
+                  Re-record
+                </button>
+              </div>
+            </div>
+          )}
+
           {recording && (
             <p className="text-red-400 text-xs animate-pulse">
-              Recording… tap ■ to analyze
+              Recording… tap ■ to stop
             </p>
           )}
-          {!recording && (
+          {!recording && !recordedBlob && (
             <p className="text-slate-500 text-xs">or</p>
           )}
         </div>
