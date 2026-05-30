@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { extractFeatures } from "@/lib/audio-analyzer";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -27,22 +26,8 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
-      // Step 1: Extract audio features in the browser (with timeout — mobile DFT is slow)
-      let features: Record<string, unknown> = {};
-      try {
-        features = await Promise.race([
-          extractFeatures(audioFile),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("feature timeout")), 3000)),
-        ]);
-      } catch {
-        // Timeout or decode failure — fall through with defaults, Gemini handles it
-        features = { duration: 0 };
-      }
-
-      // Step 2: Send file + features to API
       const formData = new FormData();
       formData.append("file", audioFile);
-      formData.append("features", JSON.stringify(features));
 
       const res = await fetch("/api/analyze", { method: "POST", body: formData });
       if (!res.ok) {

@@ -217,16 +217,6 @@ function ReportContent() {
         ))}
       </div>
 
-      {/* Bars */}
-      <div className="space-y-3 bg-slate-900 rounded-2xl p-6">
-        <h2 className="text-slate-300 font-semibold mb-4">Audio Profile</h2>
-        <Bar label="Energy" value={data.energy} color="bg-sonifuse-500" />
-        <Bar label="Danceability" value={data.danceability} color="bg-green-500" />
-        <Bar label="Acousticness" value={data.acousticness} color="bg-amber-500" />
-        <Bar label="Instrumental" value={data.instrumentalness} color="bg-purple-500" />
-        <Bar label="Valence" value={data.valence} color="bg-pink-500" />
-      </div>
-
       {/* Strategy Tips */}
       {data.tips && data.tips.length > 0 && (
         <div className="space-y-4">
