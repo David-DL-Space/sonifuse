@@ -132,7 +132,7 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
         if (msg.includes("503") || msg.includes("429") || msg.includes("UNAVAILABLE") || msg.includes("RESOURCE_EXHAUSTED")
             || msg.includes("JSON") || msg.includes("Unterminated") || msg.includes("Expected")) {
           errors.push(`${model}: ${msg.slice(0, 60)}`);
-          debug.push(`err:${model}:${msg.slice(0, 200)}`);
+          debug.push(`err:${model}:${msg.slice(0, 500)}`);
           continue;
         }
         errors.push(`${model}: ${msg.slice(0, 100)}`);
@@ -204,31 +204,36 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
 function robustParse(text: string): Record<string, unknown> {
   try { return JSON.parse(text); } catch {}
 
-  // Fix common Gemini JSON issues step by step
-  let s = text;
+  // Remove comments
+  let s = text.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
-  // 1. Remove comments
-  s = s.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  // Fix unterminated strings at end of values
+  s = s.replace(/"([^"\n]*?)$/gm, '"$1"');
 
-  // 2. Fix unterminated strings (missing closing quote on last value)
-  s = s.replace(/"([^"]*?)$/gm, '"$1"');
+  // Quote unquoted keys: {key: → {"key":
+  s = s.replace(/([{,]\s*)([a-zA-Z_$][\w$]*)(\s*:)/g, '$1"$2"$3');
 
-  // 3. Quote unquoted keys: {key: → {"key":
-  s = s.replace(/([{,]\s*)([a-zA-Z_]\w*)(\s*:)/g, '$1"$2"$3');
-
-  // 4. Single-quoted keys: {'key': → {"key":
+  // Single-quoted keys → double-quoted
   s = s.replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3');
 
-  // 5. Single-quoted string values (only when preceded by : and whitespace)
+  // Single-quoted values
   s = s.replace(/(:\s*)'([^']*)'/g, '$1"$2"');
 
-  // 6. Trailing commas before } or ]
+  // Trailing commas
   s = s.replace(/,(\s*[}\]])/g, "$1");
 
-  // 7. Missing commas between array elements: " " → ","
-  s = s.replace(/("\s+")/g, '", "');
+  // Try to fix missing quotes in values like: "key": value, → "key": "value",
+  // Only for simple unquoted words
+  s = s.replace(/(":\s*)([a-zA-Z][\w\s]*[a-zA-Z])(\s*[,}\]])/g, '$1"$2"$3');
 
   try { return JSON.parse(s); } catch {}
+
+  // Last resort: use Function constructor (like Python's json.loads leniency)
+  // Safe because input is from Gemini, not user-controlled
+  try {
+    const fn = new Function(`return (${s})`);
+    return fn() as Record<string, unknown>;
+  } catch {}
 
   throw new Error("JSON parse failed: " + text.slice(0, 200));
 }
