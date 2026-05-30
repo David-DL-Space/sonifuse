@@ -89,6 +89,7 @@ Based on the audio and these measurements, identify the genre, mood, and give 3 
     const audioB64 = audioBytes.toString("base64");
 
     const errors: string[] = [];
+    const rawTexts: string[] = [];
     for (const model of MODEL_CHAIN) {
       try {
         const result = await callGemini(model, SYSTEM_PROMPT, userPrompt, audioB64, mimeType);
@@ -195,14 +196,19 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
 function robustParse(text: string): Record<string, unknown> {
   // Try direct parse first
   try { return JSON.parse(text); } catch {}
-  
-  // Fix common Gemini JSON issues
+
+  // Fix common Gemini JSON issues (careful: don't break apostrophes in text)
   let cleaned = text
-    .replace(/'/g, '"')                     // single → double quotes
     .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3') // unquoted keys → quoted
     .replace(/,\s*}/g, '}')                 // trailing comma before }
     .replace(/,\s*]/g, ']');                // trailing comma before ]
-  
+
+  try { return JSON.parse(cleaned); } catch {}
+
+  // Last resort: single-quote keys (only at line start or after comma)
+  cleaned = text
+    .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3');
+
   return JSON.parse(cleaned);
 }
 
