@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { parse as json5parse } from "json5";
 
 const KEY = (process.env as Record<string,string|undefined>)["GEMINI_API_KEY"]||"";
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -197,22 +198,9 @@ async function callGemini(model: string, sysPrompt: string, userPrompt: string, 
 }
 
 function robustParse(text: string): Record<string, unknown> {
-  // Try direct parse first
   try { return JSON.parse(text); } catch {}
-
-  // Fix common Gemini JSON issues (careful: don't break apostrophes in text)
-  let cleaned = text
-    .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3') // unquoted keys → quoted
-    .replace(/,\s*}/g, '}')                 // trailing comma before }
-    .replace(/,\s*]/g, ']');                // trailing comma before ]
-
-  try { return JSON.parse(cleaned); } catch {}
-
-  // Last resort: single-quote keys (only at line start or after comma)
-  cleaned = text
-    .replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3');
-
-  return JSON.parse(cleaned);
+  // JSON5 handles: single quotes, unquoted keys, trailing commas, comments
+  return json5parse(text) as Record<string, unknown>;
 }
 
 function getMimeType(filename: string, fileType?: string): string {
